@@ -126,3 +126,29 @@ def test_precheck_is_a_backstop_not_a_product():
         )
     # and this over-catches, which is the safe direction for a backstop
     assert guard.precheck("\\rm -rf /") == "block"
+
+
+# ------------------------------------- system roots vs legitimate temp cleanup
+
+def test_recursive_delete_of_a_system_root_blocks():
+    """The original pattern required '/' followed by whitespace, so these all
+    passed: /home, /usr, /var, /etc. Destructive at the same scale as '/'."""
+    import guard
+    for cmd in ("rm -rf /home", "rm -rf /usr", "rm -rf /etc",
+                "rm -rf /var/lib", "sudo rm -rf /opt", "rm -rf /home/deva"):
+        assert guard.precheck(cmd) == "block", cmd
+
+
+def test_recursive_delete_of_the_root_glob_blocks():
+    import guard
+    for cmd in ("rm -rf /*", "rm -rf /.*"):
+        assert guard.precheck(cmd) == "block", cmd
+
+
+def test_temporary_directory_cleanup_is_allowed():
+    """Blocking this would make the guard unusable on day one and it would be
+    switched off before it ever protected anything."""
+    import guard
+    for cmd in ("rm -rf /tmp/build", "rm -rf /var/tmp/x",
+                "rm -rf ./dist", "rm -rf node_modules"):
+        assert guard.precheck(cmd) is None, cmd

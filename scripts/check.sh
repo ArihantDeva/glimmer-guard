@@ -58,4 +58,15 @@ echo "== benchmark floor tests (R-Judge, Agent-SafetyBench) =="
 "$PY" src/bench_floor.py
 
 echo
+echo "== guard exit-code contract (what a Muse Code wrapper sees) =="
+for pair in "rm -rf /usr:3" "cat ~/.ssh/id_rsa:2" "ls -la:0"; do
+  cmd="${pair%:*}"; want="${pair##*:}"
+  set +e; "$PY" src/muse_guard_cli.py --no-model "$cmd" >/dev/null 2>&1; got=$?; set -e
+  if [ "$got" != "$want" ]; then
+    echo "  FAIL '$cmd' exited $got, wanted $want"; exit 1
+  fi
+  echo "  '$cmd' -> exit $got"
+done
+
+echo
 echo "ALL CHECKS PASSED"

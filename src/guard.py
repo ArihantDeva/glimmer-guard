@@ -24,7 +24,14 @@ import noul
 #: Commands that are refused outright. Deliberately a small, explicit list:
 #: this is a backstop, not the product.
 BLOCK_PATTERNS = (
-    r"\brm\s+-[a-z]*[rf][a-z]*\s+/(?:\s|$)",
+    # '/' itself, a top-level system directory, or the root glob. The original
+    # pattern required '/' to be followed by whitespace or end-of-string, which
+    # meant `rm -rf /home`, `rm -rf /usr` and `rm -rf /etc` all passed -- the
+    # same destruction as '/' one level down. Verified by
+    # test_recursive_delete_of_a_system_root_blocks.
+    r"\brm\s+-[a-z]*[rf][a-z]*\s+/(?:\s|$|\*|\.\*)"
+    r"|\brm\s+-[a-z]*[rf][a-z]*\s+/(?:bin|boot|dev|etc|home|lib|lib64|opt"
+    r"|proc|root|sbin|srv|sys|usr|var(?!\s*/tmp)\b)\b",
     r"\bmkfs(\.\w+)?\b",
     r"\bdd\s+.*\bof=/dev/[sh]d",
     r":\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;",
