@@ -31,6 +31,7 @@ from transformers import (AutoModelForImageTextToText, AutoTokenizer,
                           BitsAndBytesConfig)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from train_util import checkpoint_due
 from metrics import apply_temperature, fit_temperature, gate, summarize  # noqa: E402
 import noul  # noqa: E402
 from noul import candidates, p_fail_from_pair, target_index  # noqa: E402
@@ -105,6 +106,7 @@ def main():
     ap.add_argument("--bs", type=int, default=2)
     ap.add_argument("--accum", type=int, default=4)
     ap.add_argument("--maxlen", type=int, default=192)
+    ap.add_argument("--ckpt-every", type=int, default=100)
     ap.add_argument("--lora-r", type=int, default=16)
     ap.add_argument("--lora-alpha", type=int, default=32)
     ap.add_argument("--out", default=os.environ.get(
@@ -154,6 +156,10 @@ def main():
         if (s + 1) % 10 == 0 or s == 0:
             print(f"  step {s+1}/{steps} loss {last_loss.item():.4f} "
                   f"({time.time()-t0:.0f}s)", flush=True)
+        if checkpoint_due(s + 1, steps, a.ckpt_every):
+            ck = f"{a.out}/ckpt_seed{a.seed}_step{s+1}"
+            model.save_pretrained(ck)
+            print(f"  checkpoint -> {ck}", flush=True)
 
     tp = score(model, tok, xt, cids, maxlen=a.maxlen)
     dp = score(model, tok, [r["prompt"] for r in dv], cids, maxlen=a.maxlen)
