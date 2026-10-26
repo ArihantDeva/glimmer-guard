@@ -54,4 +54,8 @@ echo "== floor test (must not be separable by surface form) =="
 "$PY" src/floor.py data/swe_train.jsonl data/swe_test.jsonl | tail -3
 
 echo
+echo "== benchmark floor tests (R-Judge, Agent-SafetyBench) =="
+"$PY" src/bench_floor.py
+
+echo
 echo "ALL CHECKS PASSED"
