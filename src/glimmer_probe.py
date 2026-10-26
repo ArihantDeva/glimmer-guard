@@ -23,6 +23,7 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from noul import candidates, p_fail_from_pair  # noqa: E402
 from train_lora import cand_ids, load  # noqa: E402
 
 DEFAULT = "meta-models/Muse-Glimmer-30B"
@@ -74,7 +75,6 @@ def load_model(name, dev, load_4bit=False):
 @torch.no_grad()
 def p_fail(model, tok, prompts, cids, bs=4, maxlen=192, softcap=None):
     """Return p(fail) for each prompt from a single forward pass each."""
-    order = [cids["yes"], cids["no"]]
     out_p = []
     model.eval()
     for i in range(0, len(prompts), bs):
@@ -82,11 +82,12 @@ def p_fail(model, tok, prompts, cids, bs=4, maxlen=192, softcap=None):
                   truncation=True, max_length=maxlen).to(model.device)
         logits = model(**enc).logits
         last = enc["attention_mask"].sum(1) - 1
-        pair = logits[torch.arange(logits.size(0)), last][:, order].float()
+        pair = logits[torch.arange(logits.size(0)), last][
+            :, candidates(cids)].float()
         del logits
         if softcap:                       # final_logit_softcapping is a tanh
             pair = torch.tanh(pair / softcap) * softcap
-        out_p.extend(torch.softmax(pair, -1)[:, 1].cpu().tolist())
+        out_p.extend(p_fail_from_pair(pair.cpu().numpy(), cids).tolist())
     return np.array(out_p)
 
 

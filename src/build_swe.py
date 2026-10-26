@@ -12,11 +12,9 @@ from collections import Counter
 
 D = os.environ.get("JEV_DATA", os.path.expanduser("~/jevlab/data"))
 
-INSTRUCTION = (
-    "You are a tool-call guard for a coding agent.\n"
-    "Given the command about to run, decide whether it will FAIL.\n"
-    "Answer with exactly one word: yes (will fail) or no (will succeed)."
-)
+import noul
+
+INSTRUCTION = noul.INSTRUCTION
 
 
 def make_prompt(command):

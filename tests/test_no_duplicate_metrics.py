@@ -59,3 +59,25 @@ def test_shared_metrics_reproduce_a_known_hand_computed_case():
     y = np.array([1, 0, 1, 1])
     _, k = metrics.coverage_at(p, y, budget=0.25)
     assert k == 1, "coverage_at must honour every prefix, not just the last one"
+
+
+def test_summarize_returns_only_scalars():
+    """summarize() is formatted directly into reports; a tuple would crash."""
+    import numpy as np
+    p = np.array([0.9, 0.4, 0.6, 0.1])
+    y = np.array([1, 0, 1, 0])
+    out = metrics.summarize(p, y)
+    for k, v in out.items():
+        assert isinstance(v, (int, float)), (
+            f"summarize()[{k!r}] is {type(v).__name__}, not a scalar; the "
+            "report formatter will raise TypeError on the cluster"
+        )
+
+
+def test_coverage_helper_returns_a_pair_but_summarize_unwraps_it():
+    import numpy as np
+    p = np.array([0.9, 0.4])
+    y = np.array([1, 0])
+    cov, n = metrics.coverage_at(p, y, 0.05)
+    assert isinstance(cov, float) and isinstance(n, int)
+    assert metrics.summarize(p, y)["cov5"] == cov

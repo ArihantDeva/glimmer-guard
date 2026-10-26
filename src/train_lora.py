@@ -36,7 +36,6 @@ def cand_ids(tok):
 @torch.no_grad()
 def score(model, tok, prompts, cids, bs=16, maxlen=256):
     model.eval()
-    order = [cids["yes"], cids["no"]]
     probs = []
     for i in range(0, len(prompts), bs):
         enc = tok(prompts[i:i + bs], return_tensors="pt", padding=True,
@@ -45,29 +44,30 @@ def score(model, tok, prompts, cids, bs=16, maxlen=256):
         # Taking the full [B,T,V] logits tensor costs ~13GB here and OOMs.
         out = model(**enc)
         last = (enc["attention_mask"].sum(1) - 1)
-        pair = out.logits[torch.arange(out.logits.size(0)), last][:, order]
+        pair = out.logits[torch.arange(out.logits.size(0)), last][
+            :, candidates(cids)].float()
         del out
-        probs.extend(F.softmax(pair.float(), -1)[:, 1].cpu().tolist())
+        probs.extend(p_fail_from_pair(pair.cpu().numpy(), cids).tolist())
     return np.array(probs)
 
 
 # Metrics come from the shared module. A local copy is how the README ends up
 # disagreeing with the tests: two implementations, two answers. The trainer
 # only trains and scores; every published number is computed by metrics.py.
+from noul import candidates, p_fail_from_pair, target_index  # noqa: E402
 from metrics import (          # noqa: E402
     apply_temperature as apply_T,
-    aurc,
-    coverage_at as cov_at,
-    ece,
     fit_temperature as fit_T,
     gate as gate_metrics,
+    summarize,
 )
 
 def report(tag, p, y):
-    print(f"  {tag:10s} acc {( (p>=.5).astype(int)==y).mean()*100:5.1f}%  "
-          f"brier {np.mean((p-y)**2):.4f}  ece {ece(p,y):.4f}  aurc {aurc(p,y):.4f}  "
-          f"cov@5 {cov_at(p,y,.05)*100:4.0f}%  cov@10 {cov_at(p,y,.10)*100:3.0f}%  "
-          f"cov@20 {cov_at(p,y,.20)*100:3.0f}%")
+    s = summarize(p, y)
+    print(f"  {tag:10s} acc {s['acc']*100:5.1f}%  brier {s['brier']:.4f}  "
+          f"ece {s['ece']:.4f}  aurc {s['aurc']:.4f}  "
+          f"cov@5 {s['cov5']*100:4.0f}%  cov@10 {s['cov10']*100:3.0f}%  "
+          f"cov@20 {s['cov20']*100:3.0f}%")
 
 
 def main():
@@ -105,7 +105,6 @@ def main():
     zp = score(model, tok, xt, cids, maxlen=a.maxlen)
 
     opt = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=a.lr)
-    order = [cids["yes"], cids["no"]]
     steps = int(math.ceil(len(tr) / a.bs * a.epochs))
     model.train()
     t0, gi = time.time(), 0
@@ -116,9 +115,10 @@ def main():
                   truncation=True, max_length=a.maxlen).to(dev)
         out = model(**enc)
         last = (enc["attention_mask"].sum(1) - 1)
-        pair = out.logits[torch.arange(len(b)), last][:, order]
+        pair = out.logits[torch.arange(len(b)), last][:, candidates(cids)]
         del out
-        tgt = torch.tensor([r["label"] for r in b], device=dev)
+        tgt = torch.tensor([target_index(r["label"], cids) for r in b],
+                           device=dev)
         loss = F.cross_entropy(pair.float(), tgt)
         opt.zero_grad(); loss.backward(); opt.step()
         if (s + 1) % 200 == 0 or s == 0:
@@ -144,14 +144,15 @@ def main():
 
     res = {"seed": a.seed, "T": T, "n": len(te),
            "zero_shot": {"acc": float(((zp >= .5).astype(int) == zy).mean()),
-                         "brier": float(np.mean((zp - zy) ** 2)), "ece": ece(zp, zy)},
+                         "brier": float(np.mean((zp - zy) ** 2)), "ece": summarize(zp, zy)["ece"]},
            "lora": {"acc": float(((tp >= .5).astype(int) == zy).mean()),
-                    "brier": float(np.mean((tp - zy) ** 2)), "ece": ece(tp, zy),
-                    "aurc": aurc(tp, zy), "cov5": cov_at(tp, zy, .05)},
+                    "brier": float(np.mean((tp - zy) ** 2)),
+                    **{k: v for k, v in summarize(tp, zy).items()
+                       if k in ("ece", "aurc", "cov5")}},
            "lora_T": {"acc": float(((tpc >= .5).astype(int) == zy).mean()),
-                      "brier": float(np.mean((tpc - zy) ** 2)), "ece": ece(tpc, zy),
-                      "aurc": aurc(tpc, zy), "cov5": cov_at(tpc, zy, .05),
-                      "cov10": cov_at(tpc, zy, .10), "cov20": cov_at(tpc, zy, .20)},
+                      "brier": float(np.mean((tpc - zy) ** 2)),
+                      **{k: v for k, v in summarize(tpc, zy).items()
+                         if k in ("ece", "aurc", "cov5", "cov10", "cov20")}},
            "gate": g}
     with open(f"{a.out}/lora_seed{a.seed}.json", "w") as f:
         json.dump(res, f, indent=2)
