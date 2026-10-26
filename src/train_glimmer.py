@@ -135,6 +135,7 @@ def main():
     t0, gi = time.time(), 0
     for s in range(steps):
         opt.zero_grad()
+        last_loss = None
         for _ in range(a.accum):
             b = [tr[(gi + k) % len(tr)] for k in range(a.bs)]
             gi += a.bs
@@ -147,10 +148,11 @@ def main():
             del logits
             tgt = torch.tensor([target_index(r["label"], cids) for r in b],
                                device=pair.device)
-            (F.cross_entropy(pair.float(), tgt) / a.accum).backward()
+            last_loss = F.cross_entropy(pair.float(), tgt)
+            (last_loss / a.accum).backward()
         opt.step()
-        if (s + 1) % 50 == 0 or s == 0:
-            print(f"  step {s+1}/{steps} loss {loss.item():.4f} "
+        if (s + 1) % 10 == 0 or s == 0:
+            print(f"  step {s+1}/{steps} loss {last_loss.item():.4f} "
                   f"({time.time()-t0:.0f}s)", flush=True)
 
     tp = score(model, tok, xt, cids, maxlen=a.maxlen)

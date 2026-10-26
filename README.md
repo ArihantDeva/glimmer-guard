@@ -32,21 +32,30 @@ names. Nothing here is a proxy signal.
 
 ### Llama-3.2-1B mechanism rung — clean, leak-free split, 3 seeds
 
-| config | accuracy | Brier | ECE | AURC | cov@5% |
-|---|---|---|---|---|---|
-| zero-shot | 65.2% | 0.2803 | 0.2371 | 0.3708 | 0% |
-| + LoRA | 72.2 / 75.0 / **75.4** | 0.205–0.219 | 0.140–0.161 | 0.177–0.252 | 1 / 2 / 7% |
-| + temperature | 72.2 / 75.0 / **75.4** | **0.183–0.202** | **0.033 / 0.044 / 0.046** | 0.177–0.252 | 1 / 2 / 7% |
+Test set n=676, 199 failures (29.4%). **Majority-class floor: 70.6%.**
 
-Per seed, `+temperature`: cov@10% = 17 / 2 / 17, cov@20% = 36 / 4 / 31.
-Test split: n = 676, 199 failures (29.4% base rate).
+| config | seed 0 | seed 1 | seed 2 | mean |
+|---|---|---|---|---|
+| zero-shot accuracy | 64.9% | 64.9% | 64.9% | 64.9% |
+| LoRA accuracy | 75.4% | 75.6% | 74.0% | **75.0%** |
+| +temperature accuracy | 75.4% | 75.6% | 74.0% | 75.0% |
 
-**Majority-class floor: 70.6%.** Read every accuracy above against that number.
+Calibration and selective prediction:
 
-What this shows: the mechanism works (single-token masking, no generation),
-calibration improves ~5× with a single fitted temperature, and accuracy beats
-the floor by 3.6–4.7 points. What it does **not** show: a solved task. See
-*Limitations*.
+| metric | zero-shot | +LoRA | +LoRA+temp |
+|---|---|---|---|
+| Brier | 0.2800 | 0.2029–0.2079 | **0.1858–0.1884** |
+| ECE | 0.2426 | 0.1479–0.1501 | **0.0487 / 0.0511 / 0.0517** |
+| AURC | 0.3621 | 0.207–0.210 | 0.207–0.210 |
+| cov@5% | 0% | 4–7% | 4–7% |
+
+Zero-shot is identical across seeds because scoring the frozen base model is
+deterministic.
+
+What this shows: the mechanism works (single-token masking, no generation);
+one fitted temperature cuts ECE **~4.8×** (0.2426 → ~0.050); accuracy lands
+**+4.4 points above the floor** with a spread of 1.6 points across seeds.
+What it does not show: a solved task. See *Limitations*.
 
 ### Muse Glimmer 30B — zero-shot (the honest starting point)
 
