@@ -48,6 +48,25 @@ calibration improves ~5× with a single fitted temperature, and accuracy beats
 the floor by 3.6–4.7 points. What it does **not** show: a solved task. See
 *Limitations*.
 
+### Muse Glimmer 30B — zero-shot (the honest starting point)
+
+The headline model, asked the task with no fine-tuning, 4-bit NF4, single
+forward pass, n=676 test rows, 199 failures:
+
+| config | acc | Brier | ECE | AURC | cov@5% |
+|---|---|---|---|---|---|
+| Glimmer 30B zero-shot | **44.7%** | 0.3323 | 0.2504 | 0.5611 | 1% |
+| always "ok" | 70.6% | — | — | — | — |
+| **lift** | **−25.9 pts** | | | | |
+
+`corr(p, y) = +0.050`. AURC 0.5611 is worse than uninformative ranking (0.5).
+
+**Read this plainly: the 30B model, asked directly, is worse than answering
+"ok" every time.** Scale does not solve this task. The mechanism — forcing the
+answer into two masked tokens and fitting a temperature — is what produces a
+usable probability. That is the finding, and it is why the fine-tuned rung
+below matters.
+
 ### Dataset
 
 | | value |

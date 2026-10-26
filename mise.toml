@@ -16,3 +16,7 @@ run = "bash scripts/sync.sh"
 [tasks.train]
 description = "Run the 1B LoRA rung on Amarel (3 seeds)"
 run = "bash scripts/train.sh"
+
+[tasks.probe]
+description = "Glimmer 30B zero-shot probe on Amarel (4-bit, 1 GPU)"
+run = "bash scripts/probe.sh"

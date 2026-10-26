@@ -2,7 +2,7 @@
 # a clean checkout needs no virtualenv management.
 PYRUN := uv run --with numpy --with pytest
 
-.PHONY: check test sync train
+.PHONY: check test sync train probe
 check:
 	@$(PYRUN) bash scripts/check.sh
 test:
@@ -11,3 +11,5 @@ sync:
 	@bash scripts/sync.sh
 train:
 	@bash scripts/train.sh
+probe:
+	@bash scripts/probe.sh
