@@ -20,3 +20,7 @@ run = "bash scripts/train.sh"
 [tasks.probe]
 description = "Glimmer 30B zero-shot probe on Amarel (4-bit, 1 GPU)"
 run = "bash scripts/probe.sh"
+
+[tasks.llama]
+description = "Build llama.cpp with CUDA on Amarel (for the Muse Code demo)"
+run = "bash scripts/build_llama_amarel.sh"
