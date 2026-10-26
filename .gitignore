@@ -1,0 +1,17 @@
+# model artefacts and run outputs
+out/
+*.pt
+*.gguf
+*.safetensors
+adapter_*/
+
+# data is rebuilt from source, never committed
+data/*.jsonl
+!data/.gitkeep
+
+# scratch
+.pytest_cache/
+__pycache__/
+*.pyc
+.venv/
+venv/

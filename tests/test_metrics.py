@@ -1,0 +1,169 @@
+"""Tests for the metrics module.
+
+The point of these tests is that a reported number can be reproduced from a
+clean checkout. Every metric is checked against a hand-computed value, so a
+sloppy refactor cannot silently move a published figure.
+"""
+import os
+import sys
+
+import numpy as np
+import pytest
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+
+from metrics import (  # noqa: E402
+    apply_temperature,
+    aurc,
+    brier,
+    coverage_at,
+    ece,
+    fit_temperature,
+    gate,
+)
+
+
+# ------------------------------------------------------------------ brier
+
+def test_brier_perfect_prediction_is_zero():
+    assert brier(np.array([1.0, 0.0]), np.array([1, 0])) == pytest.approx(0.0)
+
+
+def test_brier_confident_and_wrong_is_one():
+    assert brier(np.array([1.0]), np.array([0])) == pytest.approx(1.0)
+
+
+def test_brier_known_value():
+    # (0.8-1)^2 = 0.04 ; (0.3-0)^2 = 0.09 ; mean = 0.065
+    assert brier(np.array([0.8, 0.3]), np.array([1, 0])) == pytest.approx(0.065)
+
+
+# --------------------------------------------------------- calibration
+
+def test_ece_perfectly_calibrated_is_zero():
+    """Two bins, each exactly calibrated."""
+    p = np.array([0.0, 0.0, 1.0, 1.0])
+    y = np.array([0, 0, 1, 1])
+    assert ece(p, y) == pytest.approx(0.0)
+
+
+def test_ece_maximally_miscalibrated():
+    """Always says 1.0, always wrong -> ECE 1.0."""
+    assert ece(np.ones(4), np.zeros(4, dtype=int)) == pytest.approx(1.0)
+
+
+def test_ece_is_bounded_between_zero_and_one():
+    rng = np.random.RandomState(0)
+    p = rng.uniform(size=200)
+    y = (rng.uniform(size=200) > 0.5).astype(int)
+    assert 0.0 <= ece(p, y) <= 1.0
+
+
+def test_temperature_one_is_identity():
+    p = np.array([0.1, 0.4, 0.9])
+    assert apply_temperature(p, 1.0) == pytest.approx(p)
+
+
+def test_temperature_flattens_with_increasing_t():
+    p = np.array([0.05, 0.95])
+    flat = apply_temperature(p, 10.0)
+    assert np.all(np.abs(flat - 0.5) < np.abs(p - 0.5))
+
+
+def test_fit_temperature_reduces_ece():
+    rng = np.random.RandomState(0)
+    logit = rng.normal(size=500) * 3.0
+    p = 1 / (1 + np.exp(-logit))
+    y = (rng.uniform(size=500) < p).astype(int)
+    t = fit_temperature(p, y)
+    assert ece(apply_temperature(p, t), y) <= ece(p, y)
+
+
+# ------------------------------------------------------------------- aurc
+
+def test_aurc_perfect_ranking_is_zero():
+    p = np.array([0.99, 0.98, 0.01, 0.02])
+    y = np.array([1, 1, 0, 0])
+    assert aurc(p, y) == pytest.approx(0.0)
+
+
+def test_aurc_monotone_in_confidence():
+    # A confident-and-wrong model must have higher AURC than a confident-and-right one.
+    y = np.array([1, 1, 0, 0])
+    good = np.array([0.99, 0.95, 0.05, 0.01])
+    bad = np.array([0.01, 0.05, 0.95, 0.99])
+    assert aurc(bad, y) > aurc(good, y)
+
+
+# -------------------------------------------------------------- coverage
+
+def test_coverage_at_zero_budget_with_perfect_predictions_covers_all():
+    """A 0% error budget is met by a model that is never wrong."""
+    p = np.array([0.99, 0.01])
+    y = np.array([1, 0])
+    cov, k = coverage_at(p, y, budget=0.0)
+    assert k == 2 and cov == pytest.approx(1.0)
+
+
+def test_coverage_at_zero_budget_with_any_error_covers_nothing():
+    p = np.array([0.99, 0.6])
+    y = np.array([1, 0])          # second item wrong
+    cov, k = coverage_at(p, y, budget=0.0)
+    assert k == 1 and cov == pytest.approx(0.5)
+
+
+def test_coverage_at_one_budget_is_everything():
+    p = np.array([0.7, 0.2])
+    y = np.array([1, 0])
+    cov, k = coverage_at(p, y, budget=1.0)
+    assert k == 2 and cov == pytest.approx(1.0)
+
+
+def test_coverage_counts_only_confident_correct_prefix():
+    # Sorted by confidence: 1st correct, 2nd wrong, 3rd correct, 4th correct
+    p = np.array([0.9, 0.8, 0.7, 0.6])
+    y = np.array([1, 0, 1, 1])   # 2nd item is wrong (p>=.5 but y=0)
+    cov, k = coverage_at(p, y, budget=0.0)
+    assert k == 1
+    # Prefix risks are 0.0, 0.5, 1/3, 0.25 and the worst prefix is exactly
+    # 0.5. A 0.5 budget is inclusive, so all four qualify; one step tighter
+    # and the k=2 prefix violates the budget, capping coverage at k=1.
+    _, k_at_budget = coverage_at(p, y, budget=0.5)
+    assert k_at_budget == 4
+    _, k_tighter = coverage_at(p, y, budget=0.49)
+    assert k_tighter == 1
+
+
+# ------------------------------------------------------------------- gate
+
+def test_gate_blocks_confident_failures():
+    p = np.array([0.95, 0.85, 0.05, 0.03])
+    y = np.array([1, 0, 1, 0])
+    g = gate(p, y, hi=0.9, lo=0.2)
+    assert g["block_rate"] == pytest.approx(0.25)
+    assert g["fail_recall"] == pytest.approx(0.5)   # caught 1 of 2 failures
+    assert g["block_precision"] == pytest.approx(1.0)
+
+
+def test_gate_ask_band():
+    p = np.array([0.5])
+    y = np.array([1])
+    g = gate(p, y, hi=0.9, lo=0.2)
+    assert g["ask_rate"] == pytest.approx(1.0)
+    assert g["block_rate"] == pytest.approx(0.0)
+
+
+def test_gate_allow_band():
+    p = np.array([0.1])
+    y = np.array([0])
+    g = gate(p, y, hi=0.9, lo=0.2)
+    assert g["block_rate"] == 0 and g["ask_rate"] == 0
+    assert g["allow_rate"] == pytest.approx(1.0)
+
+
+def test_gate_rates_sum_to_one():
+    rng = np.random.RandomState(1)
+    p = rng.uniform(size=100)
+    y = (rng.uniform(size=100) > 0.5).astype(int)
+    g = gate(p, y, hi=0.7, lo=0.3)
+    assert g["block_rate"] + g["ask_rate"] + g["allow_rate"] == pytest.approx(1.0)

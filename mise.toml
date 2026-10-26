@@ -1,0 +1,18 @@
+[tools]
+python = "3.11"
+
+[tasks.check]
+description = "Full local gate: label rules + metrics + dataset integrity"
+run = "bash scripts/check.sh"
+
+[tasks.test]
+description = "Unit tests only (fast)"
+run = "python -m pytest tests/ -q"
+
+[tasks.sync]
+description = "Push code and data to the Amarel cluster"
+run = "bash scripts/sync.sh"
+
+[tasks.train]
+description = "Run the 1B LoRA rung on Amarel (3 seeds)"
+run = "bash scripts/train.sh"
