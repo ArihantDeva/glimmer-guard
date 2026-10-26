@@ -51,64 +51,17 @@ def score(model, tok, prompts, cids, bs=16, maxlen=256):
     return np.array(probs)
 
 
-def ece(p, y, bins=15):
-    conf, pred = np.maximum(p, 1 - p), (p >= .5).astype(int)
-    correct = (pred == y).astype(float)
-    e = np.linspace(0, 1, bins + 1)
-    tot = 0.0
-    for i in range(bins):
-        m = (conf >= e[i]) & (conf <= e[i + 1] if i == bins - 1 else conf < e[i + 1])
-        if m.sum():
-            tot += m.mean() * abs(correct[m].mean() - conf[m].mean())
-    return float(tot)
-
-
-def aurc(p, y):
-    conf, wrong = np.maximum(p, 1 - p), ((p >= .5).astype(int) != y).astype(float)
-    o = np.argsort(-conf)
-    return float(np.mean(np.cumsum(wrong[o]) / np.arange(1, len(wrong) + 1)))
-
-
-def cov_at(p, y, budget):
-    conf, wrong = np.maximum(p, 1 - p), ((p >= .5).astype(int) != y).astype(int)
-    o, w = np.argsort(-conf), wrong[np.argsort(-conf)]
-    best = 0
-    for k in range(1, len(w) + 1):
-        if w[:k].mean() <= budget:
-            best = k
-        else:
-            break
-    return best / len(w)
-
-
-def fit_T(p, y):
-    lo = torch.tensor(np.clip(p, 1e-6, 1 - 1e-6), dtype=torch.float64)
-    lg = torch.log(lo) - torch.log1p(-lo)
-    yt = torch.tensor(y, dtype=torch.float64)
-    best = (1.0, 1e9)
-    for t in np.arange(.25, 20.01, .05):
-        nll = F.binary_cross_entropy(torch.sigmoid(lg / t).clamp(1e-6, 1 - 1e-6), yt).item()
-        if nll < best[1]:
-            best = (float(t), nll)
-    return best[0]
-
-
-def apply_T(p, t):
-    lo = np.clip(p, 1e-6, 1 - 1e-6)
-    return 1 / (1 + np.exp(-(np.log(lo) - np.log1p(-lo)) / t))
-
-
-def gate_metrics(p, y, hi=0.6, lo=0.2):
-    """3-way gate from a probability. block where p>=hi, ask in the middle."""
-    block, ask = p >= hi, (p >= lo) & (p < hi)
-    caught = (block & (y == 1)).sum()
-    recall = caught / max((y == 1).sum(), 1)
-    false_block = (block & (y == 0)).sum()
-    precision = caught / max(block.sum(), 1)
-    return {"block_rate": float(block.mean()), "ask_rate": float(ask.mean()),
-            "fail_recall": float(recall), "block_precision": float(precision),
-            "false_block_rate": float(false_block / max((y == 0).sum(), 1))}
-
+# Metrics come from the shared module. A local copy is how the README ends up
+# disagreeing with the tests: two implementations, two answers. The trainer
+# only trains and scores; every published number is computed by metrics.py.
+from metrics import (          # noqa: E402
+    apply_temperature as apply_T,
+    aurc,
+    coverage_at as cov_at,
+    ece,
+    fit_temperature as fit_T,
+    gate as gate_metrics,
+)
 
 def report(tag, p, y):
     print(f"  {tag:10s} acc {( (p>=.5).astype(int)==y).mean()*100:5.1f}%  "

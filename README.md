@@ -34,9 +34,12 @@ names. Nothing here is a proxy signal.
 
 | config | accuracy | Brier | ECE | AURC | cov@5% |
 |---|---|---|---|---|---|
-| zero-shot | 65.2% | 0.2796 | 0.2360 | 0.3750 | 0% |
-| + LoRA | 72.2 / 75.0 / 75.3 | 0.205–0.219 | 0.141–0.159 | 0.18–0.28 | 0 / 2 / 7% |
-| + temperature | 72.2 / 75.0 / 75.3 | **0.183–0.202** | **0.033 / 0.045 / 0.047** | 0.18–0.28 | 0 / 1 / 7% |
+| zero-shot | 65.2% | 0.2803 | 0.2371 | 0.3708 | 0% |
+| + LoRA | 72.2 / 75.0 / **75.4** | 0.205–0.219 | 0.140–0.161 | 0.177–0.252 | 1 / 2 / 7% |
+| + temperature | 72.2 / 75.0 / **75.4** | **0.183–0.202** | **0.033 / 0.044 / 0.046** | 0.177–0.252 | 1 / 2 / 7% |
+
+Per seed, `+temperature`: cov@10% = 17 / 2 / 17, cov@20% = 36 / 4 / 31.
+Test split: n = 676, 199 failures (29.4% base rate).
 
 **Majority-class floor: 70.6%.** Read every accuracy above against that number.
 
@@ -75,6 +78,7 @@ src/labels.py      deterministic label rules (24 tests)
 src/metrics.py     brier / ece / aurc / coverage_at / temperature / gate (19 tests)
 src/build_swe.py   leak-free dataset builder
 src/train_lora.py  LoRA + single-token masking trainer
+src/rescore.py     re-score a saved adapter (no retraining)
 scripts/check.sh   the gate behind `make check`
 ```
 
