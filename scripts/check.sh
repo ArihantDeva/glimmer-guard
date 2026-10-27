@@ -5,10 +5,6 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 PY="${PYTHON:-python3}"
 
-echo "== unit tests =="
-"$PY" -m pytest tests/ -q
-
-echo
 echo "== dataset (built from source if absent) =="
 # The gate used to assert the dataset existed and tell the reader to go fetch
 # it, so the one command the README names as proof failed on the first run in a
@@ -24,6 +20,9 @@ if [ ! -f data/swe_train.jsonl ]; then
   echo "  building leak-free splits"
   "$PY" src/build_swe.py
 fi
+
+echo "== unit tests =="
+"$PY" -m pytest tests/ -q
 
 echo
 echo "== dataset integrity =="
