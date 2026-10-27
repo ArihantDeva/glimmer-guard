@@ -19,6 +19,14 @@ fi
 if [ ! -f data/asb.json ]; then
   "$PY" src/fetch_asb.py
 fi
+# Safety TRAINING corpora. Separate scripts from the eval sets by construction:
+# training on R-Judge or ASB makes the reported numbers meaningless.
+if [ ! -f data/karanxa.jsonl ]; then
+  "$PY" src/fetch_safety.py
+fi
+if [ ! -f data/safety_train.jsonl ]; then
+  "$PY" src/build_safety.py
+fi
 if [ ! -f data/swe_train.jsonl ]; then
   echo "  building leak-free splits"
   "$PY" src/build_swe.py

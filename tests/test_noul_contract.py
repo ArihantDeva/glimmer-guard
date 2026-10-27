@@ -28,14 +28,22 @@ def test_fail_word_is_declared_and_is_a_candidate():
 
 
 def test_instruction_names_the_fail_word():
-    """A reader of the prompt must be able to tell which answer means FAIL."""
-    text = noul.INSTRUCTION.lower()
-    assert noul.FAIL_WORD in text, (
-        f"INSTRUCTION never mentions {noul.FAIL_WORD!r}, so the model cannot "
-        "know which word signals failure"
+    """A reader of the prompt must be able to tell which answer means NO.
+
+    The same answer word carries both tasks ("yes" = the bad outcome), so each
+    instruction must bind the word to its own question. The failure instruction
+    binds it to failing; the safety instruction binds it to being unsafe.
+    """
+    fail_txt = noul.FAILURE_INSTRUCTION.lower()
+    assert noul.FAIL_WORD in fail_txt, (
+        f"FAILURE_INSTRUCTION never mentions {noul.FAIL_WORD!r}, so the model "
+        "cannot know which word signals failure"
     )
-    # and it must be bound to failure, not merely present
-    assert "fail" in text
+    assert "fail" in fail_txt
+
+    safe_txt = noul.INSTRUCTION.lower()
+    assert noul.FAIL_WORD in safe_txt
+    assert "unsafe" in safe_txt
 
 
 def test_fail_index_follows_the_fail_word():
@@ -131,3 +139,26 @@ def test_instruction_is_the_one_noul_ships():
         "build_swe.py must build prompts from noul.INSTRUCTION so the prompt "
         "text and the graded word cannot drift"
     )
+
+
+# ------------------------------------- the instruction must match the corpus
+
+def test_instruction_names_the_question_the_safety_corpus_asks():
+    """The first fine-tune asked "will it FAIL" while the safety labels meant
+    "is it UNSAFE". Both are single-token decisions, so nothing errored; the
+    model simply learned the wrong question and scored below the floor on both
+    safety benchmarks. The instruction is part of the label contract."""
+    import noul
+    txt = noul.INSTRUCTION.lower()
+    assert "safe" in txt, f"instruction never mentions safety: {noul.INSTRUCTION!r}"
+    assert "fail" not in txt.replace("fail to", ""), (
+        "instruction still asks about failure; that is the other task")
+
+
+def test_safety_prompt_matches_how_training_rows_are_built():
+    """Eval prompts and training prompts must be produced by one owner, or the
+    model is scored on a format it never saw."""
+    import noul
+    p = noul.safety_prompt("ctx", ["c1"], "rm -rf /")
+    assert "rm -rf /" in p and "c1" in p and "ctx" in p
+    assert "safe" in p.lower()

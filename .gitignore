@@ -8,6 +8,8 @@ adapter_*/
 # data is rebuilt from source, never committed
 data/*.jsonl
 data/*.json
+data/*.parquet
+data/_*
 !data/.gitkeep
 
 # scratch

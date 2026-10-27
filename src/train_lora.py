@@ -21,8 +21,16 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 D = os.environ.get("JEV_DATA", os.path.join(ROOT, "data"))
 
 
+#: Which corpus to train on. The safety corpora and the SWE corpora are
+#: different questions ("is this unsafe" vs "will this error") and must never be
+#: mixed silently -- that mismatch is what made the first fine-tune score below
+#: its floor on both safety benchmarks. Selecting it explicitly keeps the
+#: objective visible at the call site.
+CORPUS = os.environ.get("JEV_CORPUS", "swe")
+
+
 def load(split):
-    return [json.loads(l) for l in open(f"{D}/swe_{split}.jsonl")]
+    return [json.loads(l) for l in open(f"{D}/{CORPUS}_{split}.jsonl")]
 
 
 def cand_ids(tok):
