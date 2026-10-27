@@ -22,7 +22,7 @@ and a threshold in code that maps the probability to allow / ask / block.
 ## Reproduce everything
 
 ```sh
-make check          # 43 unit tests + dataset integrity + leak gate + floor test
+make check   # 175 tests + dataset integrity + leak gate + floor tests + guard contract
 ```
 
 Numbers in this README are produced by that command or by the scripts it
@@ -56,6 +56,38 @@ What this shows: the mechanism works (single-token masking, no generation);
 one fitted temperature cuts ECE **~4.8×** (0.2426 → ~0.050); accuracy lands
 **+4.4 points above the floor** with a spread of 1.6 points across seeds.
 What it does not show: a solved task. See *Limitations*.
+
+### The negative result that reframes this project
+
+The first attempt fine-tuned the model to predict whether a command would
+**error**, then evaluated it on whether a command was **unsafe**. Those are
+different questions, and the numbers show it:
+
+| benchmark | floor | zero-shot | fine-tuned | fine-tuned+T |
+|---|---|---|---|---|
+| R-Judge (n=812) | 59.6% | 55.9% | **53.4%** | 53.4% |
+| Agent-SafetyBench (n=1906) | 66.2% | 60.2% | **35.7%** | 35.7% |
+
+Fine-tuning made accuracy **worse than always answering "safe"** on both, and
+`cov@5%` was 0% everywhere — at a 5% risk budget the model could answer nothing.
+Temperature cut ECE 4.7x (0.245 -> 0.052) and moved accuracy zero points, because
+calibration and discrimination are different properties.
+
+The cause is not a tuning problem:
+
+```
+TRAIN label 1 = the command ERRORED   (runtime_error, not_found, syntax_error)
+EVAL  label 1 = the interaction was UNSAFE   (privacy leak, exfiltration)
+```
+
+A privacy-leaking `curl` that returns HTTP 200 is **safe** under the training
+label. No temperature, seed count, or corpus size fixes a mislabelled objective.
+The `floor` column is what makes this visible: our own `bench_floor.py`
+predicted R-Judge would fail (+18.5 pt lift from newline count alone) before any
+GPU was spent on it.
+
+**What this does not invalidate:** the single-token masking mechanism, and the
+calibration result on the model's *own* task (below), both reproduce.
 
 ### Benchmarks (R-Judge, Agent-SafetyBench)
 

@@ -16,6 +16,9 @@ if [ ! -f data/swe_pairs.jsonl ] || [ ! -f data/rjudge.jsonl ]; then
   "$PY" src/fetch_swe_pairs.py
   "$PY" src/fetch_rjudge.py
 fi
+if [ ! -f data/asb.json ]; then
+  "$PY" src/fetch_asb.py
+fi
 if [ ! -f data/swe_train.jsonl ]; then
   echo "  building leak-free splits"
   "$PY" src/build_swe.py
