@@ -36,7 +36,11 @@ from metrics import apply_temperature, fit_temperature, gate, summarize  # noqa:
 import noul  # noqa: E402
 from noul import candidates, p_fail_from_pair, target_index  # noqa: E402
 
-D = os.environ.get("JEV_DATA", os.path.expanduser("~/jevlab/data"))
+# Resolved at MODULE scope: __file__ is only reliably bound at import time, and
+# a helper that reads it from inside main() is an unbound-name bug the scope
+# guard correctly refuses.
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+D = os.environ.get("JEV_DATA", os.path.join(ROOT, "data"))
 MODEL = os.environ.get("JEV_MODEL", "meta-models/Muse-Glimmer-30B")
 
 
@@ -110,7 +114,7 @@ def main():
     ap.add_argument("--lora-r", type=int, default=16)
     ap.add_argument("--lora-alpha", type=int, default=32)
     ap.add_argument("--out", default=os.environ.get(
-        "JEV_OUT", os.path.expanduser("~/jevlab/out")))
+        "JEV_OUT", os.path.join(ROOT, "out")))
     a = ap.parse_args()
     torch.manual_seed(a.seed)
     np.random.seed(a.seed)

@@ -9,6 +9,23 @@ echo "== unit tests =="
 "$PY" -m pytest tests/ -q
 
 echo
+echo "== dataset (built from source if absent) =="
+# The gate used to assert the dataset existed and tell the reader to go fetch
+# it, so the one command the README names as proof failed on the first run in a
+# fresh clone. Building it here is what makes "reproduces every number from a
+# clean checkout" true rather than aspirational. Network is needed only when the
+# files are missing; the build is deterministic given the upstream data.
+if [ ! -f data/swe_pairs.jsonl ] || [ ! -f data/rjudge.jsonl ]; then
+  echo "  data missing; fetching upstream (needs network)"
+  "$PY" src/fetch_swe_pairs.py
+  "$PY" src/fetch_rjudge.py
+fi
+if [ ! -f data/swe_train.jsonl ]; then
+  echo "  building leak-free splits"
+  "$PY" src/build_swe.py
+fi
+
+echo
 echo "== dataset integrity =="
 "$PY" - <<'PYEOF'
 import json, sys

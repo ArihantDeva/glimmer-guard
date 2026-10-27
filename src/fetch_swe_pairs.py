@@ -20,7 +20,8 @@ DATASETS = [
 ]
 API = ("https://datasets-server.huggingface.co/rows"
        "?dataset={ds}&config={cfg}&split={sp}&offset={off}&length={n}")
-OUT = os.path.expanduser("~/jevlab/data/swe_pairs.jsonl")
+DATA = os.environ.get("JEV_DATA", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data"))
+OUT = os.path.join(DATA, "swe_pairs.jsonl")
 
 
 def fetch(ds, cfg, sp, off, n):

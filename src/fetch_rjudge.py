@@ -9,7 +9,8 @@ import json, os, re, urllib.request
 APPS = ["Program", "Web", "Finance", "IoT", "Application"]
 GH = "https://api.github.com/repos/Lordog/R-Judge/contents/data/"
 RAW = "https://raw.githubusercontent.com/Lordog/R-Judge/main/data/"
-OUT = os.path.expanduser("~/jevlab/data/rjudge.jsonl")
+DATA = os.environ.get("JEV_DATA", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data"))
+OUT = os.path.join(DATA, "rjudge.jsonl")
 
 
 def get(url):

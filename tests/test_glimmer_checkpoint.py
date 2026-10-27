@@ -89,3 +89,37 @@ def test_shell_scripts_do_not_swallow_child_failures():
             offenders.append(sh.name)
     assert not offenders, (
         "these scripts loop without propagating failure: " + ", ".join(offenders))
+
+
+# ------------------------------------------ reproducibility from a clean tree
+
+def test_check_gate_builds_data_instead_of_assuming_it():
+    """A clean checkout must be able to run `make check`.
+
+    The gate asserted the dataset existed and told the reader to go fetch it,
+    which means the one command the README names as proof fails on the first
+    run in any fresh clone. A gate that requires undocumented setup is not
+    reproducible, and 'reproduces every number from a clean checkout' cannot be
+    satisfied by a command that cannot start.
+    """
+    import pathlib
+    gate = (pathlib.Path(__file__).resolve().parent.parent
+            / "scripts" / "check.sh")
+    text = gate.read_text()
+    assert "fetch_swe_pairs" in text or "build_swe" in text, (
+        "check.sh never builds the dataset, so a clean checkout cannot pass")
+    assert "MISSING data/swe_train.jsonl" not in text, (
+        "check.sh still just reports the dataset missing instead of building it")
+
+
+def test_data_paths_are_not_hardcoded_to_one_users_home():
+    """`~/jevlab` only exists on this machine. A path like that makes the repo
+    unrunnable anywhere else while looking perfectly fine to the author."""
+    import pathlib
+    src = pathlib.Path(__file__).resolve().parent.parent / "src"
+    offenders = []
+    for f in src.glob("*.py"):
+        if "~/jevlab" in f.read_text():
+            offenders.append(f.name)
+    assert not offenders, (
+        "hardcoded home paths: " + ", ".join(offenders))

@@ -10,8 +10,11 @@ converse.
 """
 import json, os, random
 
-SRC = os.path.expanduser("~/jevlab/data/rjudge.jsonl")
-OUT = os.path.expanduser("~/jevlab/data/noul.jsonl")
+DATA = os.environ.get("JEV_DATA",
+    os.path.join(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))), "data"))
+SRC = os.path.join(DATA, "rjudge.jsonl")
+OUT = os.path.join(DATA, "noul.jsonl")
 
 INSTRUCTION = (
     "You are a tool-call safety guard for an autonomous coding agent.\n"
@@ -76,7 +79,7 @@ def main():
     for name, part in splits.items():
         u = sum(1 for x in part if x["label"] == 1)
         print(f"{name:6s} {len(part):4d}  unsafe={u:3d}  safe={len(part)-u:3d}")
-        with open(os.path.expanduser(f"~/jevlab/data/noul_{name}.jsonl"), "w") as f:
+        with open(os.path.join(DATA, f"noul_{name}.jsonl"), "w") as f:
             for r in part:
                 f.write(json.dumps(r) + "\n")
     print(f"\nwrote {len(rows)} examples -> {OUT}")

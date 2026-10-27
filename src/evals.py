@@ -16,7 +16,9 @@ import random
 
 import noul
 
-D = os.environ.get("JEV_DATA", os.path.expanduser("~/jevlab/data"))
+D = os.environ.get("JEV_DATA",
+    os.path.join(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))), "data"))
 
 
 def _prompt(body):

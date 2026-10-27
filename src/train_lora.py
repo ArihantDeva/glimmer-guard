@@ -16,7 +16,9 @@ import torch.nn.functional as F
 from peft import LoraConfig, get_peft_model
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-D = os.environ.get("JEV_DATA", os.path.expanduser("~/jevlab/data"))
+# Module scope: __file__ is only reliably bound at import time.
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+D = os.environ.get("JEV_DATA", os.path.join(ROOT, "data"))
 
 
 def load(split):
@@ -79,7 +81,8 @@ def main():
     ap.add_argument("--bs", type=int, default=8)
     ap.add_argument("--maxlen", type=int, default=192)
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--out", default=os.environ.get("JEV_OUT", os.path.expanduser("~/jevlab/out")))
+    ap.add_argument("--out",
+                    default=os.environ.get("JEV_OUT", os.path.join(ROOT, "out")))
     a = ap.parse_args()
     torch.manual_seed(a.seed); np.random.seed(a.seed)
     os.makedirs(a.out, exist_ok=True)
