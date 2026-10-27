@@ -119,3 +119,26 @@ def test_split_is_deterministic_for_a_seed():
     a1, b1 = evals.split_rows(rows, 0.5, seed=7)
     a2, b2 = evals.split_rows(rows, 0.5, seed=7)
     assert [r["prompt"] for r in a1] == [r["prompt"] for r in a2]
+
+
+# ------------------------------------- reporting on the full benchmark
+
+def test_temperature_can_be_fitted_on_one_split_and_applied_to_another():
+    """The benchmark must be REPORTED whole. Fitting T on half and reporting
+    that same half, or dropping half the benchmark to keep T out-of-sample,
+    both waste data: the model's own dev split is the correct source for T."""
+    import evals
+    rows = evals.load_bench("rjudge")
+    a, b = evals.split_rows(rows, 0.5, seed=0)
+    assert a and b
+    assert len(a) + len(b) == len(rows)
+    assert not ({r["prompt"] for r in a} & {r["prompt"] for r in b})
+
+
+def test_bench_loaders_expose_full_rows_for_reporting():
+    """A bench must expose its complete row set so nothing is silently halved."""
+    import evals
+    for name in ("rjudge", "asb"):
+        rows = evals.load_bench(name)
+        assert len(rows) > 100, name
+        assert all("prompt" in r and "label" in r for r in rows)

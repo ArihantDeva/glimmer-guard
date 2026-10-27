@@ -57,6 +57,18 @@ one fitted temperature cuts ECE **~4.8×** (0.2426 → ~0.050); accuracy lands
 **+4.4 points above the floor** with a spread of 1.6 points across seeds.
 What it does not show: a solved task. See *Limitations*.
 
+### Benchmarks (R-Judge, Agent-SafetyBench)
+
+Method that matters for reading these numbers:
+
+- **Temperature is fitted on the model's own dev split, never on the benchmark.**
+  Fitting T on the benchmark would leak it into the calibration curve; fitting
+  on half and reporting the other half is honest but wastes half the
+  evaluation. The dev split exists to be spent on this.
+- **The benchmark is reported in full**, so `n` is the whole set, not a half.
+- **The majority-class floor is printed beside every row.** A benchmark a
+  constant predictor can match cannot support a claim about a model.
+
 ### Muse Glimmer 30B — zero-shot (the honest starting point)
 
 The headline model, asked the task with no fine-tuning, 4-bit NF4, single
