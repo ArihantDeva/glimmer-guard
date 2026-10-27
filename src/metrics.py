@@ -82,8 +82,21 @@ def apply_temperature(p, t):
     return 1.0 / (1.0 + np.exp(-_logit(p) / float(t)))
 
 
-def fit_temperature(p, y, lo=0.25, hi=20.0, step=0.05):
-    """Fit one scalar temperature on held-out data by minimising log-loss."""
+#: Temperature search bounds. The ceiling is deliberately far beyond any
+#: plausible optimum: a fit that lands exactly ON the ceiling has not converged,
+#: it has been truncated, and a truncated fit reports a calibration number that
+#: looks measured. R-Judge fitted exactly 20.00 against the old ceiling of 20.
+TEMP_MIN = 0.25
+TEMP_MAX = 200.0
+
+
+def fit_temperature_info(p, y, lo=TEMP_MIN, hi=TEMP_MAX, step=0.05):
+    """Fit one scalar temperature by minimising log-loss; report the bound.
+
+    Returns {"T", "nll", "at_bound"}. at_bound is True when the optimum is at
+    the low or high end of the grid, which means the search was truncated and
+    the returned T should not be read as a converged optimum.
+    """
     p, y = np.asarray(p, float), np.asarray(y, float)
     lg = _logit(p)
     best_t, best_nll = 1.0, np.inf
@@ -92,7 +105,13 @@ def fit_temperature(p, y, lo=0.25, hi=20.0, step=0.05):
         nll = -np.mean(y * np.log(q) + (1 - y) * np.log(1 - q))
         if nll < best_nll:
             best_t, best_nll = float(t), nll
-    return best_t
+    at_bound = bool(best_t <= lo + step or best_t >= hi - step)
+    return {"T": best_t, "nll": float(best_nll), "at_bound": at_bound}
+
+
+def fit_temperature(p, y, lo=TEMP_MIN, hi=TEMP_MAX, step=0.05):
+    """Fit one scalar temperature on held-out data by minimising log-loss."""
+    return fit_temperature_info(p, y, lo, hi, step)["T"]
 
 
 def gate(p, y, hi=0.7, lo=0.3):

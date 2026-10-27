@@ -27,7 +27,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import evals  # noqa: E402
 from train_util import ensure_pad
-from metrics import apply_temperature, fit_temperature, gate, summarize  # noqa: E402
+from metrics import (apply_temperature, fit_temperature,
+                     fit_temperature_info, gate, summarize)  # noqa: E402
 from train_lora import cand_ids, score  # noqa: E402
 
 BASE = "unsloth/Llama-3.2-1B"
@@ -88,7 +89,17 @@ def run(adapter, bench, maxlen=MAXLEN, report_full=True):
     else:
         zp = tp
 
-    T = fit_temperature(pv, yv) if adapter else 1.0
+    # Report truncation rather than swallowing it: a T sitting on a bound means
+    # the fit did not converge, so the calibration that follows is a property of
+    # the search grid, not of the model.
+    if adapter:
+        info = fit_temperature_info(pv, yv)
+        T = info["T"]
+    else:
+        info, T = {"at_bound": False, "nll": float("nan")}, 1.0
+    if info["at_bound"]:
+        print(f"  WARNING: T={T:.2f} sits on a search bound; the fit did not "
+              f"converge and this calibration is truncated.", flush=True)
     tpc = apply_temperature(tp, T)
 
     fl = floor(rows)
@@ -98,6 +109,7 @@ def run(adapter, bench, maxlen=MAXLEN, report_full=True):
     print(f"  floor (majority class)   {fl*100:5.1f}%   "
           f"<- a constant predictor scores this")
     out = {"bench": bench, "adapter": adapter, "T": T,
+           "T_at_bound": info["at_bound"],
            "n_report": len(rep_rows), "n_fit": len(fit_rows), "floor": fl}
     for tag, p in (("zero-shot", zp), ("finetuned", tp), ("finetuned+T", tpc)):
         s = summarize(p, yr)

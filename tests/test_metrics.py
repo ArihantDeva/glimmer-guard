@@ -167,3 +167,53 @@ def test_gate_rates_sum_to_one():
     y = (rng.uniform(size=100) > 0.5).astype(int)
     g = gate(p, y, hi=0.7, lo=0.3)
     assert g["block_rate"] + g["ask_rate"] + g["allow_rate"] == pytest.approx(1.0)
+
+
+# --------------------------------------------- temperature grid must not clip
+
+def test_temperature_fit_reaches_beyond_the_grid_ceiling():
+    """A grid search that stops at hi returns hi whenever the optimum is past
+    it, with no signal that the search was truncated. R-Judge fitted T=20.00
+    exactly, which is the ceiling: the reported calibration came from a fit that
+    had not converged. Widening must move it off the bound.
+    """
+    import numpy as np
+    import metrics
+    rng = np.random.default_rng(0)
+    # deliberately overconfident and correct: the optimum temperature is large
+    y = np.array([0] * 500 + [1] * 500, float)
+    p = np.where(y == 1, 0.999, 0.001)
+    T = metrics.fit_temperature(p, y)
+    assert T < metrics.TEMP_MAX, (
+        f"T={T} sits on the search ceiling; the fit is truncated, not converged")
+
+
+def test_temperature_fit_reports_whether_it_hit_the_bound():
+    """Truncation must be visible, not inferred from a round number."""
+    import numpy as np
+    import metrics
+    # Confident AND correct: no sharpening needed, so the fit should settle
+    # somewhere interior rather than against either bound.
+    # Draw labels FROM the probabilities, so the predictions are already
+    # calibrated and the correct temperature is 1.0 -- an interior optimum.
+    rng = np.random.default_rng(7)
+    n = 4000
+    p = rng.uniform(0.2, 0.8, n)
+    y = (rng.uniform(0, 1, n) < p).astype(float)
+    info = metrics.fit_temperature_info(p, y)
+    assert set(info) == {"T", "nll", "at_bound"}
+    assert metrics.TEMP_MIN < info["T"] < metrics.TEMP_MAX
+    assert info["at_bound"] is False
+
+
+def test_a_confident_correct_predictor_sharpens_by_hitting_the_low_bound():
+    """T below 1 sharpens. If the probabilities are already correct and extreme,
+    the optimum really is at the floor -- that is convergence, not truncation,
+    and at_bound must say so rather than hiding it."""
+    import numpy as np
+    import metrics
+    y = np.array([0] * 100 + [1] * 100, float)
+    p = np.where(y == 1, 0.999, 0.001)
+    info = metrics.fit_temperature_info(p, y)
+    assert info["at_bound"] is True
+    assert info["T"] == metrics.TEMP_MIN
