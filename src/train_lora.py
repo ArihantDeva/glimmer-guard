@@ -66,7 +66,8 @@ def score(model, tok, prompts, cids, bs=16, maxlen=256):
 # only trains and scores; every published number is computed by metrics.py.
 from noul import candidates, p_fail_from_pair, target_index  # noqa: E402
 from train_util import ensure_pad
-from metrics import (          # noqa: E402
+from metrics import (
+    kl_from_prior, memorisation_gap,          # noqa: E402
     apply_temperature as apply_T,
     fit_temperature as fit_T,
     gate as gate_metrics,
@@ -141,6 +142,27 @@ def main():
     tp = score(model, tok, xt, cids, maxlen=a.maxlen)
     tpc = apply_T(tp, T)
 
+    # Score a TRAIN sample so the memorisation gap is measurable. A training
+    # loss falling to 0.01 proves nothing on its own: a model that memorises
+    # reaches it while generalising no better than chance. The gap between
+    # in-sample and held-out information is the signal.
+    n_gap = min(1500, len(tr))
+    gap_rows = tr[:n_gap]
+    gp = score(model, tok, [r["prompt"] for r in gap_rows], cids,
+               maxlen=a.maxlen)
+    gy = np.array([r["label"] for r in gap_rows])
+    mem = memorisation_gap(gp, gy, tp, zy)
+    print(f"\n=== MEMORISATION (train n={n_gap} vs test n={len(te)}) ===")
+    print(f"  KL over prior  train {mem['kl_train']:+.4f}  "
+          f"test {mem['kl_test']:+.4f}  gap {mem['kl_gap']:+.4f}")
+    print(f"  accuracy       train {mem['acc_train']*100:5.1f}%  "
+          f"test {mem['acc_test']*100:5.1f}%  gap {mem['acc_gap']*100:+5.1f}pt")
+    if mem["flagged"]:
+        print("  WARNING: train is markedly better than held-out. This is the "
+              "memorisation signature, not learning.")
+    else:
+        print("  gap is small: the model is not merely reproducing seen rows")
+
     print(f"\n=== TEST n={len(te)} fail={int(zy.sum())} T={T:.2f} ===")
     report("zero-shot", zp, zy)
     report("lora", tp, zy)
@@ -165,7 +187,7 @@ def main():
                       "brier": float(np.mean((tpc - zy) ** 2)),
                       **{k: v for k, v in summarize(tpc, zy).items()
                          if k in ("ece", "aurc", "cov5", "cov10", "cov20")}},
-           "gate": g}
+           "gate": g, "memorisation": mem}
     with open(f"{a.out}/lora_seed{a.seed}.json", "w") as f:
         json.dump(res, f, indent=2)
     model.save_pretrained(f"{a.out}/adapter_seed{a.seed}")

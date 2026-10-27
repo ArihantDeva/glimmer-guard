@@ -217,3 +217,107 @@ def test_a_confident_correct_predictor_sharpens_by_hitting_the_low_bound():
     info = metrics.fit_temperature_info(p, y)
     assert info["at_bound"] is True
     assert info["T"] == metrics.TEMP_MIN
+
+
+# ------------------------------------------------ KL divergence / memorisation
+
+def test_kl_divergence_of_identical_distributions_is_zero():
+    import metrics
+    assert metrics.kl_bernoulli(0.3, 0.3) == pytest.approx(0.0, abs=1e-12)
+    assert metrics.kl_bernoulli(0.5, 0.5) == pytest.approx(0.0, abs=1e-12)
+
+
+def test_kl_divergence_is_positive_and_symmetric_when_q_is_the_complement():
+    """KL over a BERNOULLI is not directional the way it is over a general
+    distribution: when q = 1-p the two divergences are equal
+    (KL(.9||.1) = KL(.1||.9) = 1.7578). Asserting asymmetry here was my error,
+    not the function's. Directionality shows up against a non-complement q.
+    """
+    import metrics
+    a = metrics.kl_bernoulli(0.9, 0.1)
+    b = metrics.kl_bernoulli(0.1, 0.9)
+    assert a > 0 and b > 0
+    assert a == pytest.approx(b)
+    assert metrics.kl_bernoulli(0.9, 0.3) != pytest.approx(
+        metrics.kl_bernoulli(0.3, 0.9))
+
+
+def test_kl_divergence_against_prior_is_zero_when_predicting_the_base_rate():
+    """A model that outputs the base rate for every row carries no information,
+    so its divergence from the prior must be exactly zero."""
+    import numpy as np
+    import metrics
+    y = np.array([1, 1, 0, 0], float)          # base rate 0.5
+    p = np.full(4, 0.5)
+    assert metrics.kl_from_prior(p, y) == pytest.approx(0.0, abs=1e-9)
+
+
+def test_kl_from_prior_is_benefit_over_the_base_rate():
+    """Semantics, stated once so the sign is never guessed:
+
+      constant AT the base rate   -> 0.0  (no better, no worse)
+      constant AWAY from it        -> negative (worse: a balanced set predicted
+                                      as 0.1 is a badly miscalibrated constant)
+      varying with the label       -> positive (the model knows something)
+    """
+    import numpy as np
+    import metrics
+    y = np.array([1] * 50 + [0] * 50, float)          # base rate 0.5
+
+    assert metrics.kl_from_prior(np.full(100, 0.5), y) == pytest.approx(
+        0.0, abs=1e-9)
+
+    # a constant away from the base rate is worse than the prior
+    assert metrics.kl_from_prior(np.full(100, 0.1), y) < 0
+    assert metrics.kl_from_prior(np.full(100, 0.9), y) < 0
+
+    # and both are equally bad, by symmetry around the base rate
+    assert (metrics.kl_from_prior(np.full(100, 0.1), y)
+            == pytest.approx(metrics.kl_from_prior(np.full(100, 0.9), y)))
+
+    # a model that actually tracks the label beats the prior
+    good = metrics.kl_from_prior(np.where(y == 1, 0.9, 0.1), y)
+    assert good > 0
+
+
+def test_degenerate_base_rate_does_not_produce_nan():
+    """All-one-class labels make the prior 0; KL must stay finite, because a
+    NaN silently poisons every aggregate that touches it."""
+    import numpy as np
+    import metrics
+    y = np.zeros(10)
+    v = metrics.kl_from_prior(np.full(10, 0.01), y)
+    assert np.isfinite(v)
+
+
+def test_memorisation_gap_is_near_zero_when_train_and_test_agree():
+    import numpy as np
+    import metrics
+    y = np.array([1, 0, 1, 0], float)
+    p = np.array([0.8, 0.2, 0.7, 0.3])
+    gap = metrics.memorisation_gap(p, y, p, y)
+    assert gap["kl_gap"] == pytest.approx(0.0, abs=1e-9)
+
+
+def test_memorisation_gap_is_large_when_train_is_perfect_and_test_is_not():
+    """This is the signature the safety run shows: train loss falling to 0.0146
+    while the held-out split stays mediocre. A model that answers train rows
+    perfectly and test rows poorly has memorised, not learned."""
+    import numpy as np
+    import metrics
+    y = np.array([1, 0, 1, 0], float)
+    train_p = np.array([0.999, 0.001, 0.999, 0.001])   # perfect
+    test_p = np.array([0.55, 0.45, 0.52, 0.48])        # near chance
+    gap = metrics.memorisation_gap(train_p, y, test_p, y)
+    assert gap["kl_gap"] > 0.5
+    assert gap["flagged"] is True
+
+
+def test_memorisation_gap_reports_the_components_not_just_a_flag():
+    import numpy as np
+    import metrics
+    y = np.array([1, 0, 1, 0], float)
+    p = np.array([0.9, 0.1, 0.8, 0.2])
+    gap = metrics.memorisation_gap(p, y, p, y)
+    for k in ("kl_train", "kl_test", "kl_gap", "acc_train", "acc_test", "flagged"):
+        assert k in gap, k

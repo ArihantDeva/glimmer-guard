@@ -154,3 +154,73 @@ def summarize(p, y):
         "cov10": coverage_at(p, y, 0.10)[0],
         "cov20": coverage_at(p, y, 0.20)[0],
     }
+
+
+# ------------------------------------------------ divergence and memorisation
+
+def _clip(p):
+    return np.clip(np.asarray(p, float), 1e-6, 1 - 1e-6)
+
+
+def kl_bernoulli(p, q):
+    """KL(p || q) for Bernoulli distributions, in nats."""
+    p, q = float(_clip(p)), float(_clip(q))
+    return p * np.log(p / q) + (1 - p) * np.log((1 - p) / (1 - q))
+
+
+def _cross_entropy(p, y):
+    p, y = _clip(p), np.asarray(y, float)
+    return float(-np.mean(y * np.log(p) + (1 - y) * np.log(1 - p)))
+
+
+def kl_from_prior(p, y):
+    """Information gained over the base-rate prior, in nats.
+
+    Defined as  CE(prior) - CE(model):  how many nats the model saves compared
+    with a constant predictor that always emits the base rate.
+
+      > 0  better than the prior  (the model knows something)
+      = 0  exactly the prior       (a constant predictor scores 0 whatever
+                                    constant it picks -- confidence is not
+                                    information)
+      < 0  WORSE than the prior    (confidently wrong)
+
+    The first implementation of this averaged a per-row log ratio, which is not
+    a divergence and returned -0.51 for a constant predictor. A test asserting
+    that a constant predictor scores 0.0 caught it.
+    """
+    p = _clip(p)
+    y = np.asarray(y, float)
+    prior = float(_clip(y.mean()))
+    return _cross_entropy(np.full(len(y), prior), y) - _cross_entropy(p, y)
+
+
+def memorisation_gap(p_train, y_train, p_test, y_test, kl_threshold=0.25):
+    """Compare how much the model learned on train versus held-out data.
+
+    A falling training loss is not evidence of learning: a model that memorises
+    drives it to ~0 while generalising no better than chance. The signal is the
+    GAP. Train divergence much larger than held-out divergence means the model
+    fits rows it has seen and carries little information about rows it has not.
+
+    `flagged` is True when train is markedly better than held-out, which is the
+    memorisation signature rather than a merely-difficult task.
+    """
+    kl_tr = kl_from_prior(p_train, y_train)
+    kl_te = kl_from_prior(p_test, y_test)
+
+    def acc(p, y):
+        p, y = _clip(p), np.asarray(y, float)
+        return float(np.mean((p >= 0.5) == (y >= 0.5)))
+
+    a_tr, a_te = acc(p_train, y_train), acc(p_test, y_test)
+    gap = kl_tr - kl_te
+    return {
+        "kl_train": kl_tr,
+        "kl_test": kl_te,
+        "kl_gap": gap,
+        "acc_train": a_tr,
+        "acc_test": a_te,
+        "acc_gap": a_tr - a_te,
+        "flagged": bool(gap > kl_threshold),
+    }
