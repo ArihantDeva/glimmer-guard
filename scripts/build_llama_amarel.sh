@@ -28,7 +28,12 @@ $CMAKE -B build -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ \
   -DGGML_CUDA=ON -DLLAMA_CURL=OFF -DLLAMA_BUILD_TESTS=OFF \
   -DLLAMA_BUILD_EXAMPLES=ON -DLLAMA_UI_BUILD_ASSETS=OFF \
-  -DCMAKE_CUDA_ARCHITECTURES="80;86" || exit 2
+  # Match the ACTUAL partition, not the newest card on it. Building only 80;86
+  # and then landing on volta (sm_70) produced a runtime CUDA error inside
+  # ggml_cuda_kernel_can_use_pdl -- programmatic dependent launch does not exist
+  # before Hopper, and the binary carried no sm_70 code to fall back to. Amarel's
+  # gpu partition has V100 (70), A100 (80) and L40S (89) nodes, so all are built.
+  -DCMAKE_CUDA_ARCHITECTURES="70;80;89" || exit 2
 
 $CMAKE --build build --target llama-server llama-cli llama-quantize -j 16 || exit 3
 echo BUILD_OK

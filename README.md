@@ -92,13 +92,34 @@ below matters.
 
 | | value |
 |---|---|
-| raw (command, observation) pairs | 19,210 |
-| unique commands after dedup | 6,764 |
-| train / dev / test | 5,412 / 676 / 676 |
+| raw (command, observation) pairs | 41,333 |
+| unique commands after dedup | 12,744 |
+| collapsed as exact duplicates | 28,589 |
+| genuine label conflicts | 3,340 |
+| train / dev / test | 10,196 / 1,274 / 1,274 |
+| distinct SWE-bench instances | 74 |
 | split leakage | **none** (enforced by `make check`) |
 | failure classes | ok, runtime_error, not_found, syntax_error, import_error |
 
 Labels are deterministic functions of the observation text.
+
+**On the 223k target in the brief: this dataset is 12,744 unique commands, 5.7%
+of it.** That is the real number and it is not padded. The raw pair count is
+larger only because agents repeat commands; the duplicate and conflict counts
+are published so the gap is auditable rather than hidden. Two limits worth
+stating plainly:
+
+- **74 source repositories.** Every row comes from an agent working in one of
+  74 SWE-bench instances, so the command distribution is narrow: mostly Python
+  test runners, file reads, and package installs. 12,744 rows from 74 repos is
+  not 12,744 rows from 12,744 repos, and the model's transfer to an unseen
+  domain is bounded by that, not by the row count.
+- **3,340 label conflicts** are commands that both succeeded and failed in the
+  same repository. Those are irreducible from the observation alone: the outcome
+  depends on state the prompt does not carry. They are kept, not dropped,
+  because removing them would make the task look cleaner than it is.
+
+The R-Judge result below is the same limit measured on someone else's benchmark.
 
 ## Limitations (do not quote a number without these)
 
