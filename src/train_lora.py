@@ -55,6 +55,7 @@ def score(model, tok, prompts, cids, bs=16, maxlen=256):
 # disagreeing with the tests: two implementations, two answers. The trainer
 # only trains and scores; every published number is computed by metrics.py.
 from noul import candidates, p_fail_from_pair, target_index  # noqa: E402
+from train_util import ensure_pad
 from metrics import (          # noqa: E402
     apply_temperature as apply_T,
     fit_temperature as fit_T,
@@ -85,7 +86,7 @@ def main():
     dev = "cuda" if torch.cuda.is_available() else "cpu"
 
     tok = AutoTokenizer.from_pretrained(a.model)
-    tok.pad_token = tok.eos_token
+    ensure_pad(tok)
     cids = cand_ids(tok)
     base = AutoModelForCausalLM.from_pretrained(a.model, torch_dtype=torch.bfloat16).to(dev)
     model = get_peft_model(base, LoraConfig(

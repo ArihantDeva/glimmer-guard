@@ -18,6 +18,7 @@ from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from train_util import ensure_pad
 from metrics import (  # noqa: E402
     apply_temperature,
     fit_temperature,
@@ -32,7 +33,7 @@ MAXLEN = 192          # must equal train_lora.py --maxlen
 
 def _tok():
     tok = AutoTokenizer.from_pretrained(BASE)
-    tok.pad_token = tok.eos_token
+    ensure_pad(tok)
     return tok
 
 

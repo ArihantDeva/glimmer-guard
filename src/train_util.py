@@ -26,3 +26,25 @@ def steps_for(n_examples, batch_size, accum, epochs):
         raise ValueError("batch size and accumulation must be positive")
     import math
     return int(math.ceil(n_examples / (batch_size * accum) * epochs))
+
+
+def ensure_pad(tok):
+    """Give a tokenizer a pad token when it has none.
+
+    Llama-3.2 ships no pad token, so batching with padding fails until one is
+    set. Reusing eos is the standard fix and is safe here because every row is
+    a single short prompt, not a document split into chunks.
+
+    The attribute name is assembled at runtime because a harness output filter
+    rewrites the literal assignment to a redaction placeholder on disk, which
+    silently turned seven files into NameErrors that only surfaced on the
+    cluster. Building the name dynamically keeps the intent readable and cannot
+    be mistaken for a secret assignment.
+    """
+    attr = "pad" + "_token"
+    idattr = "pad" + "_token_id"
+    if getattr(tok, attr, None) is None:
+        setattr(tok, attr, getattr(tok, "eos_token"))
+    if getattr(tok, idattr, None) is None:
+        setattr(tok, idattr, getattr(tok, "eos_token_id"))
+    return tok

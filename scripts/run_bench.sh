@@ -13,11 +13,26 @@
 export JEV_DATA=/scratch/ad2416/jevdata
 export HF_HOME=/scratch/ad2416/hf
 cd /scratch/ad2416
+# A loop that ignores its children's exit codes reports success no matter how
+# badly they failed. The first bench job exited 0 with COMPLETED while every one
+# of the three seeds had crashed on a NameError, and the only reason it was
+# caught is that 49 seconds is implausible for 3 seeds x 2 benchmarks. An
+# implausible runtime was the alarm; the exit code should have been.
+rc=0
 for s in 0 1 2; do
   echo "########## seed $s ##########"
   /scratch/ad2416/venv-torch/bin/python -u /scratch/ad2416/jevsrc/eval_bench.py \
     --adapter /scratch/ad2416/jevout-fix/adapter_seed$s \
     --bench both \
     --out /scratch/ad2416/jevout-fix/bench_seed$s.json
+  this=$?
+  if [ "$this" -ne 0 ]; then
+    echo "SEED $s FAILED rc=$this"
+    rc=$this
+  fi
 done
+if [ "$rc" -ne 0 ]; then
+  echo "BENCH_FAILED rc=$rc"
+  exit "$rc"
+fi
 echo BENCH_DONE

@@ -26,6 +26,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import evals  # noqa: E402
+from train_util import ensure_pad
 from metrics import apply_temperature, fit_temperature, gate, summarize  # noqa: E402
 from train_lora import cand_ids, score  # noqa: E402
 
@@ -56,7 +57,7 @@ def load_dev_rows():
 def run(adapter, bench, maxlen=MAXLEN, report_full=True):
     rows = evals.load_bench(bench)
     tok = AutoTokenizer.from_pretrained(BASE)
-    tok.pad_token=[REDACTED]
+    ensure_pad(tok)
     cids = cand_ids(tok)
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     base = AutoModelForCausalLM.from_pretrained(

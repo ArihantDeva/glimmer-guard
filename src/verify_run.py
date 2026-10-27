@@ -22,6 +22,7 @@ from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from train_util import ensure_pad
 from metrics import apply_temperature, fit_temperature, summarize  # noqa: E402
 from train_lora import cand_ids, load, score  # noqa: E402
 
@@ -30,7 +31,7 @@ BASE = "unsloth/Llama-3.2-1B"
 
 def check(adapter):
     tok = AutoTokenizer.from_pretrained(BASE)
-    tok.pad_token = tok.eos_token
+    ensure_pad(tok)
     cids = cand_ids(tok)
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     base = AutoModelForCausalLM.from_pretrained(

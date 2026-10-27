@@ -105,8 +105,7 @@ def main():
     a = ap.parse_args()
 
     tok = AutoTokenizer.from_pretrained(a.model, trust_remote_code=True)
-    if tok.pad_token is None:
-        tok.pad_token = tok.eos_token
+    ensure_pad(tok)
     cids = cand_ids(tok)          # raises SystemExit if either word is not ONE token
     print(f"tokenizer ok: yes={cids['yes']} no={cids['no']}", flush=True)
 
@@ -120,7 +119,8 @@ def main():
     p = p_fail(model, tok, [r["prompt"] for r in rows], cids,
                bs=a.bs, maxlen=a.maxlen, softcap=a.softcap)
 
-    from metrics import summarize
+    from train_util import ensure_pad
+from metrics import summarize
     s = summarize(p, y)
     corr = float(np.corrcoef(p, y)[0, 1]) if p.std() > 0 else float("nan")
 

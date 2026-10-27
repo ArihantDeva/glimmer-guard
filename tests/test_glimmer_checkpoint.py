@@ -64,3 +64,28 @@ def test_partial_epochs_shrink_the_run():
 def test_zero_batch_is_rejected():
     with pytest.raises(ValueError, match="positive"):
         steps_for(100, 0, 4, 1.0)
+
+
+# ------------------------------------------- batch-script exit propagation
+
+def test_shell_scripts_do_not_swallow_child_failures():
+    """A loop that ignores its children's exit codes reports success however
+    badly they failed. The first bench job reported COMPLETED exit 0 while all
+    three seeds had crashed on a NameError; only an implausible 49-second
+    runtime gave it away. The exit code should have been the alarm.
+
+    Static check: every multi-step run script must propagate or fail fast.
+    """
+    import pathlib
+    import re
+    root = pathlib.Path(__file__).resolve().parent.parent / "scripts"
+    offenders = []
+    for sh in sorted(root.glob("run_*.sh")):
+        text = sh.read_text()
+        if "for " not in text:
+            continue
+        guards = ("set -e", "|| exit", "FAILED", "exit \"$rc\"", "exit $rc")
+        if not any(g in text for g in guards):
+            offenders.append(sh.name)
+    assert not offenders, (
+        "these scripts loop without propagating failure: " + ", ".join(offenders))

@@ -31,7 +31,7 @@ from transformers import (AutoModelForImageTextToText, AutoTokenizer,
                           BitsAndBytesConfig)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from train_util import checkpoint_due
+from train_util import ensure_pad, checkpoint_due
 from metrics import apply_temperature, fit_temperature, gate, summarize  # noqa: E402
 import noul  # noqa: E402
 from noul import candidates, p_fail_from_pair, target_index  # noqa: E402
